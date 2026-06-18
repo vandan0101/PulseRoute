@@ -10,19 +10,19 @@ import LookingForDriver from "../components/LookingForDriver";
 import WaitingForDriver from "../components/WaitingForDriver";
 
 const Home = () => {
-  const [ pickup, setPickup ] = useState('')
-    const [ destination, setDestination ] = useState('')
-    const [ panelOpen, setPanelOpen ] = useState(false)
-    const vehiclePanelRef = useRef(null)
-    const confirmRidePanelRef = useRef(null)
-    const vehicleFoundRef = useRef(null)
-    const waitingForDriverRef = useRef(null)
-    const panelRef = useRef(null)
-    const panelCloseRef = useRef(null)
-    const [ vehiclePanel, setVehiclePanel ] = useState(false)
-    const [ confirmRidePanel, setConfirmRidePanel ] = useState(false)
-    const [ vehicleFound, setVehicleFound ] = useState(false)
-    const [ waitingForDriver, setWaitingForDriver ] = useState(false)
+  const [pickup, setPickup] = useState("");
+  const [destination, setDestination] = useState("");
+  const [panelOpen, setPanelOpen] = useState(false);
+  const vehiclePanelRef = useRef(null);
+  const confirmRidePanelRef = useRef(null);
+  const vehicleFoundRef = useRef(null);
+  const waitingForDriverRef = useRef(null);
+  const panelRef = useRef(null);
+  const panelCloseRef = useRef(null);
+  const [vehiclePanel, setVehiclePanel] = useState(false);
+  const [confirmRidePanel, setConfirmRidePanel] = useState(false);
+  const [vehicleFound, setVehicleFound] = useState(false);
+  const [waitingForDriver, setWaitingForDriver] = useState(false);
 
   const submitHandler = (e) => {
     e.preventDefault();
@@ -113,22 +113,22 @@ const Home = () => {
     [waitingForDriver],
   );
 
-   async function findTrip() {
-        setVehiclePanel(true)
-        setPanelOpen(false)
+  async function findTrip() {
+    setVehiclePanel(true);
+    setPanelOpen(false);
 
-        const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/rides/get-fare`, {
-            params: { pickup, destination },
-            headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`
-            }
-        })
+    const response = await axios.get(
+      `${import.meta.env.VITE_BASE_URL}/rides/get-fare`,
+      {
+        params: { pickup, destination },
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      },
+    );
 
-
-        setFare(response.data)
-
-
-    }
+    setFare(response.data);
+  }
 
   return (
     <div className="h-screen relative overflow-hidden">
@@ -164,15 +164,42 @@ const Home = () => {
             }}
           >
             <div className="line absolute h-16 w-1 top-[50%] -translate-y-1/2 left-5 bg-gray-700 rounded-full"></div>
+            <input
+              onClick={() => {
+                setPanelOpen(true);
+              }}
+              value={pickup}
+              // onChange={handlePickupChange}
+              className="bg-[#eee] px-12 py-2 text-lg rounded-lg w-full"
+              type="text"
+              placeholder="Add a pick-up location"
+            />
+            <input
+              onClick={() => {
+                setPanelOpen(true);
+              }}
+              value={destination}
+              // onChange={handleDestinationChange}
+              className="bg-[#eee] px-12 py-2 text-lg rounded-lg w-full  mt-3"
+              type="text"
+              placeholder="Enter your destination"
+            />
+            <div className="line absolute h-16 w-1 top-[50%] -translate-y-1/2 left-5 bg-gray-700 rounded-full"></div>
           </form>
           <button
             onClick={findTrip}
-            className='bg-black text-white px-4 py-2 rounded-lg mt-3 w-full'>
+            className="bg-black text-white px-4 py-2 rounded-lg mt-3 w-full"
+          >
             Find Trip
-        </button>
+          </button>
         </div>
         <div ref={panelRef} className="bg-white h-0">
-          <LocationSearchPanel />
+          <LocationSearchPanel
+            setPanelOpen={setPanelOpen}
+            setVehiclePanel={setVehiclePanel}
+            setPickup={setPickup}
+            setDestination={setDestination}
+          />
         </div>
       </div>
       <div
