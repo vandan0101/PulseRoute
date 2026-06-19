@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import axios from "axios";
 import "remixicon/fonts/remixicon.css";
 import LocationSearchPanel from "../components/LocationSearchPanel";
 import VehiclePanel from "../components/VehiclePanel";
@@ -26,6 +25,14 @@ const Home = () => {
 
   const submitHandler = (e) => {
     e.preventDefault();
+  };
+
+  const selectVehicle = () => {
+    // Temporary local mode keeps the UI flow moving without backend fare/vehicle data.
+  };
+
+  const createRide = () => {
+    setVehicleFound(true);
   };
 
   useGSAP(
@@ -116,18 +123,6 @@ const Home = () => {
   async function findTrip() {
     setVehiclePanel(true);
     setPanelOpen(false);
-
-    const response = await axios.get(
-      `${import.meta.env.VITE_BASE_URL}/rides/get-fare`,
-      {
-        params: { pickup, destination },
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      },
-    );
-
-    setFare(response.data);
   }
 
   return (
@@ -209,6 +204,7 @@ const Home = () => {
         <VehiclePanel
           setConfirmRidePanel={setConfirmRidePanel}
           setVehiclePanel={setVehiclePanel}
+          selectVehicle={selectVehicle}
         />
       </div>
       <div
@@ -220,6 +216,7 @@ const Home = () => {
           destination={destination}
           setConfirmRidePanel={setConfirmRidePanel}
           setVehicleFound={setVehicleFound}
+          createRide={createRide}
         />
       </div>
       <div
@@ -240,6 +237,21 @@ const Home = () => {
           setVehicleFound={setVehicleFound}
           setWaitingForDriver={setWaitingForDriver}
           waitingForDriver={waitingForDriver}
+          ride={{
+            captain: {
+              fullname: {
+                firstname: 'Temp',
+                lastname: 'Driver'
+              },
+              vehicle: {
+                plate: 'MH-01-TEMP'
+              }
+            },
+            pickup,
+            destination,
+            fare: 145,
+            otp: '1234'
+          }}
         />
       </div>
     </div>
