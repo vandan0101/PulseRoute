@@ -1,43 +1,43 @@
-import React, { useContext, useEffect, useState } from 'react'
-import { UserDataContext } from '../context/UserContext'
+import React, { useContext, useEffect, useState } from "react";
+import { UserDataContext } from "../context/UserContext";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
-const UserProtectWrapper = ({
-    children
-}) => {
-    const token = localStorage.getItem('token')
-    const { user, setUser } = useContext(UserDataContext)
-    const [ isLoading, setIsLoading ] = useState(true)
+const UserProtectWrapper = ({ children }) => {
+  const token = localStorage.getItem("token");
+  const navigate = useNavigate();
+  const { user, setUser } = useContext(UserDataContext);
+  const [isLoading, setIsLoading] = useState(true);
 
-    const tempUser = {
-        _id: 'temp-user-1',
-        fullname: {
-            firstname: 'Temp',
-            lastname: 'User'
+  useEffect(() => {
+    if (!token) {
+      navigate("/login");
+    }
+
+    axios
+      .get(`${import.meta.env.VITE_BASE_URL}/users/profile`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-        email: 'user@example.com'
-    }
+      })
+      .then((response) => {
+        if (response.status === 200) {
+          setUser(response.data);
+          setIsLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.log(err);
+        localStorage.removeItem("token");
+        navigate("/login");
+      });
+  }, [token]);
 
-    useEffect(() => {
-        const storedUser = localStorage.getItem('user-profile')
-        const userData = storedUser ? JSON.parse(storedUser) : tempUser
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
-        localStorage.setItem('token', token || 'user-temp-token')
-        localStorage.setItem('user-profile', JSON.stringify(userData))
-        setUser(userData)
-        setIsLoading(false)
-    }, [ token, setUser ])
+  return <>{children}</>;
+};
 
-    if (isLoading) {
-        return (
-            <div>Loading...</div>
-        )
-    }
-
-    return (
-        <>
-            {children}
-        </>
-    )
-}
-
-export default UserProtectWrapper
+export default UserProtectWrapper;
