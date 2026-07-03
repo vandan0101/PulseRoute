@@ -3,40 +3,14 @@ import { Link, useLocation } from 'react-router-dom'
 import FinishRide from '../components/FinishRide'
 import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
+import LiveTracking from '../components/LiveTracking'
 
 const CaptainRiding = () => {
 
     const [ finishRidePanel, setFinishRidePanel ] = useState(false)
     const finishRidePanelRef = useRef(null)
     const location = useLocation()
-    const rideData = location.state?.ride ?? {
-        _id: 'temp-ride-1',
-        user: {
-            fullname: {
-                firstname: 'Aarav',
-                lastname: 'Patel'
-            }
-        },
-        captain: {
-            fullname: {
-                firstname: 'Temp',
-                lastname: 'Captain'
-            },
-            vehicle: {
-                plate: 'MH-01-TEMP'
-            }
-        },
-        pickup: 'Sheryians Coding School',
-        destination: 'City Center',
-        fare: 145
-    }
-
-    const LiveTracking = () => (
-        <div
-            className='h-full w-full bg-cover bg-center'
-            style={{ backgroundImage: 'url(https://miro.medium.com/1*FuBgpXnVJDArxTVXqn802Q.png)' }}
-        />
-    )
+    const rideData = location.state?.ride
 
 
 
