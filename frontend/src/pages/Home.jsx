@@ -14,6 +14,8 @@ import { UserDataContext } from '../context/UserContext';
 import { useNavigate } from 'react-router-dom';
 import LiveTracking from '../components/LiveTracking';
 
+const getUserToken = () => localStorage.getItem('user-token') || localStorage.getItem('token')
+
 const Home = () => {
     const [ pickup, setPickup ] = useState('')
     const [ destination, setDestination ] = useState('')
@@ -44,19 +46,26 @@ const Home = () => {
         socket.emit("join", { userType: "user", userId: user._id })
     }, [ user ])
 
-    socket.on('ride-confirmed', ride => {
+    useEffect(() => {
+        const handleRideConfirmed = (ride) => {
+            setVehicleFound(false)
+            setWaitingForDriver(true)
+            setRide(ride)
+        }
 
+        const handleRideStarted = (ride) => {
+            setWaitingForDriver(false)
+            navigate('/riding', { state: { ride } })
+        }
 
-        setVehicleFound(false)
-        setWaitingForDriver(true)
-        setRide(ride)
-    })
+        socket.on('ride-confirmed', handleRideConfirmed)
+        socket.on('ride-started', handleRideStarted)
 
-    socket.on('ride-started', ride => {
-        console.log("ride")
-        setWaitingForDriver(false)
-        navigate('/riding', { state: { ride } }) // Updated navigate to include ride data
-    })
+        return () => {
+            socket.off('ride-confirmed', handleRideConfirmed)
+            socket.off('ride-started', handleRideStarted)
+        }
+    }, [ navigate, socket ])
 
 
     const handlePickupChange = async (e) => {
@@ -65,7 +74,7 @@ const Home = () => {
             const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/maps/get-suggestions`, {
                 params: { input: e.target.value },
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('token')}`
+                    Authorization: `Bearer ${getUserToken()}`
                 }
 
             })
@@ -81,7 +90,7 @@ const Home = () => {
             const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/maps/get-suggestions`, {
                 params: { input: e.target.value },
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('token')}`
+                    Authorization: `Bearer ${getUserToken()}`
                 }
             })
             setDestinationSuggestions(response.data)
@@ -173,7 +182,7 @@ const Home = () => {
         const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/rides/get-fare`, {
             params: { pickup, destination },
             headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`
+                Authorization: `Bearer ${getUserToken()}`
             }
         })
 
@@ -190,7 +199,7 @@ const Home = () => {
             vehicleType
         }, {
             headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`
+                Authorization: `Bearer ${getUserToken()}`
             }
         })
 
@@ -199,12 +208,12 @@ const Home = () => {
 
     return (
         <div className='h-screen relative overflow-hidden'>
-            <img className='w-16 absolute left-5 top-5' src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png" alt="" />
+            <img className='w-16 absolute left-5 top-5 z-[1000]' src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png" alt="" />
             <div className='h-screen w-screen'>
                 {/* image for temporary use  */}
                 <LiveTracking />
             </div>
-            <div className=' flex flex-col justify-end h-screen absolute top-0 w-full'>
+            <div className='z-[1000] flex flex-col justify-end h-screen absolute top-0 w-full'>
                 <div className='h-[30%] p-6 bg-white relative'>
                     <h5 ref={panelCloseRef} onClick={() => {
                         setPanelOpen(false)
@@ -279,7 +288,7 @@ const Home = () => {
                     vehicleType={vehicleType}
                     setVehicleFound={setVehicleFound} />
             </div>
-            <div ref={waitingForDriverRef} className='fixed w-full  z-10 bottom-0  bg-white px-3 py-6 pt-12'>
+            <div ref={waitingForDriverRef} className='fixed w-full z-10 bottom-0 translate-y-full bg-white px-3 py-6 pt-12'>
                 <WaitingForDriver
                     ride={ride}
                     setVehicleFound={setVehicleFound}

@@ -1,42 +1,42 @@
 import React, { useContext, useEffect, useState } from 'react'
 import { CaptainDataContext } from '../context/CapatainContext'
+import { useNavigate } from 'react-router-dom'
+import axios from 'axios'
 
 const CaptainProtectWrapper = ({
     children
 }) => {
 
-    const { captain, setCaptain } = useContext(CaptainDataContext)
+    const token = localStorage.getItem('captain-token') || localStorage.getItem('token')
+    const navigate = useNavigate()
+    const { setCaptain } = useContext(CaptainDataContext)
     const [ isLoading, setIsLoading ] = useState(true)
 
-    const tempCaptain = {
-        _id: 'temp-captain-1',
-        fullname: {
-            firstname: 'Temp',
-            lastname: 'Captain'
-        },
-        email: 'captain@example.com',
-        vehicle: {
-            color: 'Black',
-            plate: 'MH-01-TEMP',
-            capacity: 4,
-            vehicleType: 'car'
-        }
-    }
-
-
-
-
     useEffect(() => {
-        const storedCaptain = localStorage.getItem('captain-profile')
-        const captainData = storedCaptain ? JSON.parse(storedCaptain) : tempCaptain
+        if (!token) {
+            navigate('/captain-login')
+            return
+        }
 
-        localStorage.setItem('token', localStorage.getItem('token') || 'captain-temp-token')
-        localStorage.setItem('captain-profile', JSON.stringify(captainData))
-        setCaptain(captainData)
-        setIsLoading(false)
-    }, [ setCaptain ])
-
-    
+        axios.get(`${import.meta.env.VITE_BASE_URL}/captains/profile`, {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        })
+            .then((response) => {
+                if (response.status === 200) {
+                    setCaptain(response.data.captain)
+                    setIsLoading(false)
+                }
+            })
+            .catch((err) => {
+                console.log(err)
+                localStorage.removeItem('token')
+                localStorage.removeItem('captain-token')
+                localStorage.removeItem('captain-profile')
+                navigate('/captain-login')
+            })
+    }, [ navigate, setCaptain, token ])
 
     if (isLoading) {
         return (

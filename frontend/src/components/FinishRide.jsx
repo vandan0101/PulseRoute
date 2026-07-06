@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 
+const getCaptainToken = () => localStorage.getItem('captain-token') || localStorage.getItem('token')
 
 const FinishRide = (props) => {
 
@@ -16,7 +17,7 @@ const FinishRide = (props) => {
 
         }, {
             headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`
+                Authorization: `Bearer ${getCaptainToken()}`
             }
         })
 

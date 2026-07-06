@@ -10,6 +10,9 @@ import { SocketContext } from '../context/SocketContext'
 import { CaptainDataContext } from '../context/CapatainContext'
 import axios from 'axios'
 
+const isValidObjectId = (value) => /^[a-f\d]{24}$/i.test(value)
+const getCaptainToken = () => localStorage.getItem('captain-token') || localStorage.getItem('token')
+
 const CaptainHome = () => {
 
     const [ ridePopupPanel, setRidePopupPanel ] = useState(false)
@@ -23,6 +26,10 @@ const CaptainHome = () => {
     const { captain } = useContext(CaptainDataContext)
 
     useEffect(() => {
+        if (!captain?._id || !isValidObjectId(captain._id)) {
+            return undefined
+        }
+
         socket.emit('join', {
             userId: captain._id,
             userType: 'captain'
@@ -45,15 +52,21 @@ const CaptainHome = () => {
         const locationInterval = setInterval(updateLocation, 10000)
         updateLocation()
 
-        // return () => clearInterval(locationInterval)
-    }, [])
+        return () => clearInterval(locationInterval)
+    }, [ captain?._id, socket ])
 
-    socket.on('new-ride', (data) => {
+    useEffect(() => {
+        const handleNewRide = (data) => {
+            setRide(data)
+            setRidePopupPanel(true)
+        }
 
-        setRide(data)
-        setRidePopupPanel(true)
+        socket.on('new-ride', handleNewRide)
 
-    })
+        return () => {
+            socket.off('new-ride', handleNewRide)
+        }
+    }, [ socket ])
 
     async function confirmRide() {
 
@@ -65,7 +78,7 @@ const CaptainHome = () => {
 
         }, {
             headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`
+                Authorization: `Bearer ${getCaptainToken()}`
             }
         })
 

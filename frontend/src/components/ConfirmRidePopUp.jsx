@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 
+const getCaptainToken = () => localStorage.getItem('captain-token') || localStorage.getItem('token')
+
 const ConfirmRidePopUp = (props) => {
     const [ otp, setOtp ] = useState('')
     const navigate = useNavigate()
@@ -16,7 +18,7 @@ const ConfirmRidePopUp = (props) => {
                 otp: otp
             },
             headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`
+                Authorization: `Bearer ${getCaptainToken()}`
             }
         })
 

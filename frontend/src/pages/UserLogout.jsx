@@ -6,6 +6,7 @@ export const UserLogout = () => {
     const navigate = useNavigate()
 
     localStorage.removeItem('token')
+    localStorage.removeItem('user-token')
     localStorage.removeItem('user-profile')
     navigate('/login')
 

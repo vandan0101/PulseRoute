@@ -1,68 +1,97 @@
-import React, { useState, useEffect } from 'react'
-import { LoadScript, GoogleMap, Marker } from '@react-google-maps/api'
+import React, { useEffect, useMemo, useState } from 'react'
+import L from 'leaflet'
+import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
+import markerIcon from 'leaflet/dist/images/marker-icon.png'
+import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 
-const containerStyle = {
-    width: '100%',
-    height: '100%',
-};
+const defaultCenter = {
+    lat: 28.6139,
+    lng: 77.2090
+}
 
-const center = {
-    lat: -3.745,
-    lng: -38.523
-};
+const markerIconConfig = L.icon({
+    iconRetinaUrl: markerIcon2x,
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+})
+
+const RecenterMap = ({ position }) => {
+    const map = useMap()
+
+    useEffect(() => {
+        map.setView(position, map.getZoom(), {
+            animate: true
+        })
+    }, [ map, position ])
+
+    return null
+}
 
 const LiveTracking = () => {
-    const [ currentPosition, setCurrentPosition ] = useState(center);
+    const [ currentPosition, setCurrentPosition ] = useState(defaultCenter)
 
     useEffect(() => {
-        navigator.geolocation.getCurrentPosition((position) => {
-            const { latitude, longitude } = position.coords;
+        if (!navigator.geolocation) {
+            return undefined
+        }
+
+        const updatePosition = (position) => {
+            const { latitude, longitude } = position.coords
+
             setCurrentPosition({
                 lat: latitude,
                 lng: longitude
-            });
-        });
+            })
+        }
 
-        const watchId = navigator.geolocation.watchPosition((position) => {
-            const { latitude, longitude } = position.coords;
-            setCurrentPosition({
-                lat: latitude,
-                lng: longitude
-            });
-        });
+        const handleError = (error) => {
+            console.error('Unable to fetch location:', error)
+        }
 
-        return () => navigator.geolocation.clearWatch(watchId);
-    }, []);
+        navigator.geolocation.getCurrentPosition(updatePosition, handleError, {
+            enableHighAccuracy: true
+        })
 
-    useEffect(() => {
-        const updatePosition = () => {
-            navigator.geolocation.getCurrentPosition((position) => {
-                const { latitude, longitude } = position.coords;
+        const watchId = navigator.geolocation.watchPosition(updatePosition, handleError, {
+            enableHighAccuracy: true,
+            maximumAge: 0
+        })
 
-                console.log('Position updated:', latitude, longitude);
-                setCurrentPosition({
-                    lat: latitude,
-                    lng: longitude
-                });
-            });
-        };
+        const intervalId = window.setInterval(() => {
+            navigator.geolocation.getCurrentPosition(updatePosition, handleError, {
+                enableHighAccuracy: true
+            })
+        }, 1000)
 
-        updatePosition(); // Initial position update
+        return () => {
+            navigator.geolocation.clearWatch(watchId)
+            window.clearInterval(intervalId)
+        }
+    }, [])
 
-        const intervalId = setInterval(updatePosition, 1000); // Update every 10 seconds
-
-    }, []);
+    const position = useMemo(() => [ currentPosition.lat, currentPosition.lng ], [ currentPosition ])
 
     return (
-        <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
-            <GoogleMap
-                mapContainerStyle={containerStyle}
-                center={currentPosition}
-                zoom={15}
-            >
-                <Marker position={currentPosition} />
-            </GoogleMap>
-        </LoadScript>
+        <MapContainer
+            center={position}
+            zoom={15}
+            scrollWheelZoom={true}
+            className='h-full w-full relative z-0'
+        >
+            <TileLayer
+                attribution='&copy; OpenStreetMap contributors'
+                url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+            />
+            <RecenterMap position={position} />
+            <Marker position={position} icon={markerIconConfig}>
+                <Popup>Current location</Popup>
+            </Marker>
+        </MapContainer>
     )
 }
 

@@ -1,17 +1,28 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { UserDataContext } from "../context/UserContext";
-import { useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import axios from "axios";
 
 const UserProtectWrapper = ({ children }) => {
-  const token = localStorage.getItem("token");
-  const navigate = useNavigate();
-  const { user, setUser } = useContext(UserDataContext);
+  const token = localStorage.getItem("user-token") || localStorage.getItem("token");
+  const cachedUser = useMemo(() => {
+    const storedUser = localStorage.getItem("user-profile");
+    return storedUser ? JSON.parse(storedUser) : null;
+  }, []);
+  const { setUser } = useContext(UserDataContext);
   const [isLoading, setIsLoading] = useState(true);
+  const [shouldRedirect, setShouldRedirect] = useState(false);
 
   useEffect(() => {
     if (!token) {
-      navigate("/login");
+      setIsLoading(false);
+      setShouldRedirect(true);
+      return;
+    }
+
+    if (cachedUser) {
+      setUser(cachedUser);
+      setIsLoading(false);
     }
 
     axios
@@ -29,9 +40,16 @@ const UserProtectWrapper = ({ children }) => {
       .catch((err) => {
         console.log(err);
         localStorage.removeItem("token");
-        navigate("/login");
+        localStorage.removeItem("user-token");
+        localStorage.removeItem("user-profile");
+        setIsLoading(false);
+        setShouldRedirect(true);
       });
-  }, [token]);
+  }, [cachedUser, setUser, token]);
+
+  if (shouldRedirect) {
+    return <Navigate to="/login" replace />;
+  }
 
   if (isLoading) {
     return <div>Loading...</div>;

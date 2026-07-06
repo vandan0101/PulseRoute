@@ -6,6 +6,7 @@ export const CaptainLogout = () => {
     const navigate = useNavigate()
 
     localStorage.removeItem('token')
+    localStorage.removeItem('captain-token')
     localStorage.removeItem('captain-profile')
     navigate('/captain-login')
 

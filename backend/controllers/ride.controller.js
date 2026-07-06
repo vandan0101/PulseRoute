@@ -1,7 +1,7 @@
 const rideService = require("../services/ride.service");
 const { validationResult } = require("express-validator");
 const mapService = require("../services/maps.service");
-const { sendMessageToSocketId } = require("../socket");
+const { sendMessageToSocketId } = require("../services/socket");
 const rideModel = require("../models/ride.model");
 
 module.exports.createRide = async (req, res) => {
@@ -137,5 +137,4 @@ module.exports.endRide = async (req, res) => {
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
-  s;
 };
