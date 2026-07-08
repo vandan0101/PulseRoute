@@ -4,6 +4,7 @@ const userModel = require('../models/user.model');
 const captainModel = require('../models/captain.model');
 
 let io;
+const connections = new Map();
 
 function initializeSocket(server) {
     io = socketIo(server, {
@@ -29,12 +30,13 @@ function initializeSocket(server) {
                 } else if (userType === 'captain') {
                     await captainModel.findByIdAndUpdate(userId, { socketId: socket.id });
                 }
+
+                connections.set(socket.id, { userId, userType });
             } catch (error) {
                 console.error('Socket join failed:', error);
                 socket.emit('error', { message: 'Unable to join socket session' });
             }
         });
-
 
         socket.on('update-location-captain', async (data) => {
             try {
@@ -60,20 +62,50 @@ function initializeSocket(server) {
             }
         });
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', async () => {
             console.log(`Client disconnected: ${socket.id}`);
+            const connection = connections.get(socket.id);
+
+            if (connection) {
+                const { userId, userType } = connection;
+
+                try {
+                    if (userType === 'user') {
+                        await userModel.findByIdAndUpdate(userId, { $unset: { socketId: '' } });
+                    } else if (userType === 'captain') {
+                        await captainModel.findByIdAndUpdate(userId, { $unset: { socketId: '' } });
+                    }
+                } catch (error) {
+                    console.error('Error clearing socketId on disconnect:', error);
+                }
+
+                connections.delete(socket.id);
+            }
         });
     });
 }
 
-const sendMessageToSocketId = (socketId, messageObject) => {
-    console.log(messageObject);
+const sendMessageToSocketId = async (socketId, messageObject) => {
+    console.log('sendMessageToSocketId', { socketId, event: messageObject.event });
 
-    if (io) {
-        io.to(socketId).emit(messageObject.event, messageObject.data);
-    } else {
+    if (!io) {
         console.log('Socket.io not initialized.');
+        return;
     }
-}
+
+    const socketInstance = io.sockets.sockets.get(socketId);
+    if (!socketInstance) {
+        console.log(`Socket not found for id ${socketId}. Cleaning stale socketId.`);
+        try {
+            await captainModel.findOneAndUpdate({ socketId }, { $unset: { socketId: '' } });
+            await userModel.findOneAndUpdate({ socketId }, { $unset: { socketId: '' } });
+        } catch (err) {
+            console.error('Failed to clear stale socketId:', err);
+        }
+        return;
+    }
+
+    socketInstance.emit(messageObject.event, messageObject.data);
+};
 
 module.exports = { initializeSocket, sendMessageToSocketId };

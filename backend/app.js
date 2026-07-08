@@ -12,7 +12,7 @@ const rideRoutes = require('./routes/ride.routes');
 
 connectToDb();
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true, allowedHeaders: ['Content-Type', 'Authorization'] }));
 app.use(express.json());
 app.use(express.urlencoded({ extended : true}));
 app.use(cookieParser());
@@ -20,6 +20,21 @@ app.use(cookieParser());
 
 app.get('/', (req, res) => {
     res.send('Hello World');
+});
+
+// Temporary debug endpoint to inspect incoming token and decoded payload.
+app.get('/debug/token', (req, res) => {
+    const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
+    if (!token) {
+        return res.status(200).json({ tokenPresent: false, message: 'No token provided' });
+    }
+    try {
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        return res.status(200).json({ tokenPresent: true, decoded });
+    } catch (err) {
+        return res.status(400).json({ tokenPresent: true, error: err.message });
+    }
 });
 
 app.use('/users', userRoutes);

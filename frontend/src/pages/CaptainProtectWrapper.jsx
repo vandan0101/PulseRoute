@@ -17,12 +17,9 @@ const CaptainProtectWrapper = ({
             navigate('/captain-login')
             return
         }
-
-        axios.get(`${import.meta.env.VITE_BASE_URL}/captains/profile`, {
-            headers: {
-                Authorization: `Bearer ${token}`
-            }
-        })
+        // Ensure axios will send the Authorization header and include credentials.
+        axios.defaults.headers.common.Authorization = `Bearer ${token}`
+        axios.get('/captains/profile', { withCredentials: true })
             .then((response) => {
                 if (response.status === 200) {
                     setCaptain(response.data.captain)
@@ -31,6 +28,7 @@ const CaptainProtectWrapper = ({
             })
             .catch((err) => {
                 console.log(err)
+                // If profile fetch fails, send user to login.
                 localStorage.removeItem('token')
                 localStorage.removeItem('captain-token')
                 localStorage.removeItem('captain-profile')

@@ -26,34 +26,42 @@ const CaptainHome = () => {
     const { captain } = useContext(CaptainDataContext)
 
     useEffect(() => {
-        if (!captain?._id || !isValidObjectId(captain._id)) {
-            return undefined
+        if (!socket || !captain?._id || !isValidObjectId(captain._id)) {
+            return undefined;
         }
 
-        socket.emit('join', {
-            userId: captain._id,
-            userType: 'captain'
-        })
+        const joinCaptain = () => {
+            socket.emit('join', {
+                userId: captain._id,
+                userType: 'captain',
+            });
+        };
+
         const updateLocation = () => {
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(position => {
-
+                navigator.geolocation.getCurrentPosition((position) => {
                     socket.emit('update-location-captain', {
                         userId: captain._id,
                         location: {
                             ltd: position.coords.latitude,
-                            lng: position.coords.longitude
-                        }
-                    })
-                })
+                            lng: position.coords.longitude,
+                        },
+                    });
+                });
             }
-        }
+        };
 
-        const locationInterval = setInterval(updateLocation, 10000)
-        updateLocation()
+        joinCaptain();
+        socket.on('connect', joinCaptain);
 
-        return () => clearInterval(locationInterval)
-    }, [ captain?._id, socket ])
+        const locationInterval = setInterval(updateLocation, 10000);
+        updateLocation();
+
+        return () => {
+            clearInterval(locationInterval);
+            socket.off('connect', joinCaptain);
+        };
+    }, [ captain?._id, socket ]);
 
     useEffect(() => {
         const handleNewRide = (data) => {
@@ -69,22 +77,23 @@ const CaptainHome = () => {
     }, [ socket ])
 
     async function confirmRide() {
+        try {
+            const response = await axios.post('/rides/confirm', {
+                rideId: ride._id,
+                captainId: captain._id,
+            }, { withCredentials: true, headers: { Authorization: `Bearer ${getCaptainToken()}` } })
 
-        const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/rides/confirm`, {
-
-            rideId: ride._id,
-            captainId: captain._id,
-
-
-        }, {
-            headers: {
-                Authorization: `Bearer ${getCaptainToken()}`
+            setRidePopupPanel(false)
+            setConfirmRidePopupPanel(true)
+        } catch (err) {
+            console.error('Failed to confirm ride:', err)
+            if (err.response?.status === 401) {
+                // token missing or invalid
+                window.location.href = '/captain-login'
+                return
             }
-        })
-
-        setRidePopupPanel(false)
-        setConfirmRidePopupPanel(true)
-
+            alert(err.response?.data?.message || 'Unable to confirm ride.')
+        }
     }
 
 

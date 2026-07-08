@@ -48,7 +48,10 @@ const CaptainSignup = () => {
         setCaptain(captain)
         localStorage.removeItem('user-token')
         localStorage.setItem('captain-token', token)
+        // Also set a unified token key for compatibility
+        localStorage.setItem('token', token)
         localStorage.setItem('captain-profile', JSON.stringify(captain))
+        axios.defaults.headers.common.Authorization = `Bearer ${token}`;
         navigate('/captain-home')
       }
     } catch (error) {

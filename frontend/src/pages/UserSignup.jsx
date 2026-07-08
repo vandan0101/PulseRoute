@@ -41,6 +41,8 @@ const UserSignup = () => {
         setUser(user)
         localStorage.removeItem('captain-token')
         localStorage.setItem('user-token', token)
+        // Also set a unified token key for compatibility
+        localStorage.setItem('token', token)
         localStorage.setItem('user-profile', JSON.stringify(user))
         navigate('/home')
       }

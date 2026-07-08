@@ -3,6 +3,57 @@ const { validationResult } = require("express-validator");
 const mapService = require("../services/maps.service");
 const { sendMessageToSocketId } = require("../services/socket");
 const rideModel = require("../models/ride.model");
+const captainModel = require("../models/captain.model");
+
+async function notifyCaptainsAboutRide(ride, pickup) {
+  try {
+    const pickupCoordinates = await mapService.getAddressCoordinate(pickup);
+
+    const captainsInRadius = await mapService.getCaptainsInTheRadius(
+      pickupCoordinates.ltd,
+      pickupCoordinates.lng,
+      2,
+    );
+
+    const rideWithUser = await rideModel
+      .findOne({ _id: ride._id })
+      .populate("user");
+
+    if (captainsInRadius.length === 0) {
+      console.log(
+        'No captains available in the pickup radius, delivering ride notification to all connected captains.',
+      );
+      const allCaptains = await captainModel.find({
+        socketId: { $exists: true, $ne: null },
+      });
+
+      allCaptains.forEach((captain) => {
+        if (!captain.socketId) {
+          return;
+        }
+
+        sendMessageToSocketId(captain.socketId, {
+          event: "new-ride",
+          data: rideWithUser,
+        });
+      });
+      return;
+    }
+
+    captainsInRadius.forEach((captain) => {
+      if (!captain.socketId) {
+        return;
+      }
+
+      sendMessageToSocketId(captain.socketId, {
+        event: "new-ride",
+        data: rideWithUser,
+      });
+    });
+  } catch (error) {
+    console.error('Failed to notify captains about new ride:', error);
+  }
+}
 
 module.exports.createRide = async (req, res) => {
   const errors = validationResult(req);
@@ -21,26 +72,7 @@ module.exports.createRide = async (req, res) => {
     });
     res.status(201).json(ride);
 
-    const pickupCoordinates = await mapService.getAddressCoordinate(pickup);
-
-    const captainsInRadius = await mapService.getCaptainsInTheRadius(
-      pickupCoordinates.ltd,
-      pickupCoordinates.lng,
-      2,
-    );
-
-    ride.otp = "";
-
-    const rideWithUser = await rideModel
-      .findOne({ _id: ride._id })
-      .populate("user");
-
-    captainsInRadius.map((captain) => {
-      sendMessageToSocketId(captain.socketId, {
-        event: "new-ride",
-        data: rideWithUser,
-      });
-    });
+    notifyCaptainsAboutRide(ride, pickup);
   } catch (err) {
     console.log(err);
     return res.status(500).json({ message: err.message });
@@ -72,6 +104,9 @@ module.exports.confirmRide = async (req, res) => {
   const { rideId } = req.body;
 
   try {
+    console.log('confirmRide headers Authorization:', req.headers.authorization);
+    console.log('confirmRide cookie token:', req.cookies && req.cookies.token);
+    console.log('confirmRide req.captain:', !!req.captain, req.captain && req.captain._id);
     const ride = await rideService.confirmRide({
       rideId,
       captain: req.captain,
@@ -95,16 +130,10 @@ module.exports.startRide = async (req, res) => {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { rideId, otp } = req.query;
+  const { rideId } = req.query;
 
   try {
-    const ride = await rideService.startRide({
-      rideId,
-      otp,
-      captain: req.captain,
-    });
-
-    console.log(ride);
+    const ride = await rideService.startRide({ rideId, captain: req.captain });
 
     sendMessageToSocketId(ride.user.socketId, {
       event: "ride-started",
@@ -123,10 +152,10 @@ module.exports.endRide = async (req, res) => {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { rideId } = req.body;
+  const { rideId, otp } = req.body;
 
   try {
-    const ride = await rideService.endRide({ rideId, captain: req.captain });
+    const ride = await rideService.endRide({ rideId, captain: req.captain, otp });
 
     sendMessageToSocketId(ride.user.socketId, {
       event: "ride-ended",

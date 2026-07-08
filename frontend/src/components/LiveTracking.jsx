@@ -32,10 +32,65 @@ const RecenterMap = ({ position }) => {
     return null
 }
 
-const LiveTracking = () => {
-    const [ currentPosition, setCurrentPosition ] = useState(defaultCenter)
+const RouteLayer = ({ geometry, pickup, dest }) => {
+    const map = useMap()
 
     useEffect(() => {
+        if (!geometry) return
+
+        const layer = L.geoJSON(geometry, {
+            style: { color: 'blue', weight: 5 }
+        }).addTo(map)
+
+        if (pickup && dest) {
+            const bounds = L.latLngBounds([ [ pickup.lat, pickup.lng ], [ dest.lat, dest.lng ] ])
+            map.fitBounds(bounds, { padding: [50, 50] })
+        }
+
+        return () => {
+            map.removeLayer(layer)
+        }
+    }, [ map, geometry, pickup, dest ])
+
+    return null
+}
+
+const LiveTracking = ({ ride }) => {
+    const [ currentPosition, setCurrentPosition ] = useState(defaultCenter)
+    const [ routeGeometry, setRouteGeometry ] = useState(null)
+    const [ pickupCoords, setPickupCoords ] = useState(null)
+    const [ destCoords, setDestCoords ] = useState(null)
+
+    useEffect(() => {
+        // If a ride is provided, geocode pickup/destination and fetch route
+        if (ride && ride.pickup && ride.destination) {
+            (async () => {
+                try {
+                    const geocode = async (address) => {
+                        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`)
+                        const data = await res.json()
+                        if (!data || data.length === 0) return null
+                        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
+                    }
+
+                    const p = await geocode(ride.pickup)
+                    const d = await geocode(ride.destination)
+                    if (p && d) {
+                        setPickupCoords(p)
+                        setDestCoords(d)
+                        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${p.lng},${p.lat};${d.lng},${d.lat}?overview=full&geometries=geojson`
+                        const r = await fetch(osrmUrl)
+                        const jr = await r.json()
+                        if (jr && jr.routes && jr.routes.length > 0) {
+                            setRouteGeometry(jr.routes[0].geometry)
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch route:', err)
+                }
+            })()
+        }
+
         if (!navigator.geolocation) {
             return undefined
         }
@@ -91,6 +146,9 @@ const LiveTracking = () => {
             <Marker position={position} icon={markerIconConfig}>
                 <Popup>Current location</Popup>
             </Marker>
+            {routeGeometry && pickupCoords && destCoords && (
+                <RouteLayer geometry={routeGeometry} pickup={pickupCoords} dest={destCoords} />
+            )}
         </MapContainer>
     )
 }

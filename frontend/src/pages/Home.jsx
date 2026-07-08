@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import LiveTracking from '../components/LiveTracking';
 
 const getUserToken = () => localStorage.getItem('user-token') || localStorage.getItem('token')
+const MIN_QUERY_LENGTH = 3
 
 const Home = () => {
     const [ pickup, setPickup ] = useState('')
@@ -36,6 +37,9 @@ const Home = () => {
     const [ fare, setFare ] = useState({})
     const [ vehicleType, setVehicleType ] = useState(null)
     const [ ride, setRide ] = useState(null)
+    const [ tripSheetHidden, setTripSheetHidden ] = useState(false)
+    const pickupSuggestionRequestId = useRef(0)
+    const destinationSuggestionRequestId = useRef(0)
 
     const navigate = useNavigate()
 
@@ -43,8 +47,21 @@ const Home = () => {
     const { user } = useContext(UserDataContext)
 
     useEffect(() => {
-        socket.emit("join", { userType: "user", userId: user._id })
-    }, [ user ])
+        if (!socket || !user?._id) {
+            return;
+        }
+
+        const joinUser = () => {
+            socket.emit('join', { userType: 'user', userId: user._id });
+        };
+
+        joinUser();
+        socket.on('connect', joinUser);
+
+        return () => {
+            socket.off('connect', joinUser);
+        };
+    }, [ socket, user ]);
 
     useEffect(() => {
         const handleRideConfirmed = (ride) => {
@@ -67,35 +84,63 @@ const Home = () => {
         }
     }, [ navigate, socket ])
 
+    useEffect(() => {
+        setTripSheetHidden(vehiclePanel || confirmRidePanel || vehicleFound || waitingForDriver)
+    }, [ vehiclePanel, confirmRidePanel, vehicleFound, waitingForDriver ])
+
 
     const handlePickupChange = async (e) => {
-        setPickup(e.target.value)
+        const value = e.target.value
+        setPickup(value)
+
+        if (value.trim().length < MIN_QUERY_LENGTH) {
+            setPickupSuggestions([])
+            return
+        }
+
+        const requestId = ++pickupSuggestionRequestId.current
         try {
             const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/maps/get-suggestions`, {
-                params: { input: e.target.value },
+                params: { input: value },
                 headers: {
                     Authorization: `Bearer ${getUserToken()}`
                 }
 
             })
-            setPickupSuggestions(response.data)
-        } catch {
-            // handle error
+            if (requestId === pickupSuggestionRequestId.current) {
+                setPickupSuggestions(Array.isArray(response.data) ? response.data : [])
+            }
+        } catch (error) {
+            if (requestId === pickupSuggestionRequestId.current) {
+                setPickupSuggestions([])
+            }
         }
     }
 
     const handleDestinationChange = async (e) => {
-        setDestination(e.target.value)
+        const value = e.target.value
+        setDestination(value)
+
+        if (value.trim().length < MIN_QUERY_LENGTH) {
+            setDestinationSuggestions([])
+            return
+        }
+
+        const requestId = ++destinationSuggestionRequestId.current
         try {
             const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/maps/get-suggestions`, {
-                params: { input: e.target.value },
+                params: { input: value },
                 headers: {
                     Authorization: `Bearer ${getUserToken()}`
                 }
             })
-            setDestinationSuggestions(response.data)
-        } catch {
-            // handle error
+            if (requestId === destinationSuggestionRequestId.current) {
+                setDestinationSuggestions(Array.isArray(response.data) ? response.data : [])
+            }
+        } catch (error) {
+            if (requestId === destinationSuggestionRequestId.current) {
+                setDestinationSuggestions([])
+            }
         }
     }
 
@@ -176,45 +221,64 @@ const Home = () => {
 
 
     async function findTrip() {
-        setVehiclePanel(true)
+        if (pickup.trim().length < MIN_QUERY_LENGTH || destination.trim().length < MIN_QUERY_LENGTH) {
+            return
+        }
+
         setPanelOpen(false)
 
-        const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/rides/get-fare`, {
-            params: { pickup, destination },
-            headers: {
-                Authorization: `Bearer ${getUserToken()}`
-            }
-        })
+        try {
+            const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/rides/get-fare`, {
+                params: { pickup, destination },
+                headers: {
+                    Authorization: `Bearer ${getUserToken()}`
+                }
+            })
 
-
-        setFare(response.data)
+            setFare(response.data)
+            setVehiclePanel(true)
+        } catch (error) {
+            setVehiclePanel(false)
+        }
 
 
     }
 
     async function createRide() {
-        const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/rides/create`, {
-            pickup,
-            destination,
-            vehicleType
-        }, {
-            headers: {
-                Authorization: `Bearer ${getUserToken()}`
+        try {
+            const token = getUserToken()
+            console.log('createRide: using token length', token ? token.length : 0)
+            if (!token) {
+                // No token — redirect user to login to obtain a token before creating rides.
+                console.warn('createRide: missing token, redirecting to login')
+                navigate('/login')
+                return null
             }
-        })
+            const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/rides/create`, {
+                pickup,
+                destination,
+                vehicleType
+            }, {
+                headers: {
+                    Authorization: `Bearer ${getUserToken()}`
+                }
+            })
 
-
+            return response.data
+        } catch (error) {
+            return null
+        }
     }
 
     return (
         <div className='h-screen relative overflow-hidden'>
-            <img className='w-16 absolute left-5 top-5 z-[1000]' src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png" alt="" />
+            <img className='w-16 absolute left-5 top-5 z-1000' src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png" alt="" />
             <div className='h-screen w-screen'>
                 {/* image for temporary use  */}
                 <LiveTracking />
             </div>
-            <div className='z-[1000] flex flex-col justify-end h-screen absolute top-0 w-full'>
-                <div className='h-[30%] p-6 bg-white relative'>
+            <div className='z-1000 flex flex-col justify-end h-screen absolute top-0 w-full'>
+                <div className={`h-[30%] p-6 bg-white relative transition-transform duration-300 ease-in-out ${tripSheetHidden ? 'translate-y-full pointer-events-none' : 'translate-y-0 pointer-events-auto'}`}>
                     <h5 ref={panelCloseRef} onClick={() => {
                         setPanelOpen(false)
                     }} className='absolute opacity-0 right-6 top-6 text-2xl'>
@@ -264,12 +328,12 @@ const Home = () => {
                     />
                 </div>
             </div>
-            <div ref={vehiclePanelRef} className='fixed w-full z-10 bottom-0 translate-y-full bg-white px-3 py-10 pt-12'>
+            <div ref={vehiclePanelRef} className='fixed w-full z-1100 bottom-0 translate-y-full bg-white px-3 py-10 pt-12'>
                 <VehiclePanel
                     selectVehicle={setVehicleType}
                     fare={fare} setConfirmRidePanel={setConfirmRidePanel} setVehiclePanel={setVehiclePanel} />
             </div>
-            <div ref={confirmRidePanelRef} className='fixed w-full z-10 bottom-0 translate-y-full bg-white px-3 py-6 pt-12'>
+            <div ref={confirmRidePanelRef} className='fixed w-full z-1200 bottom-0 translate-y-full bg-white px-3 py-6 pt-12'>
                 <ConfirmRide
                     createRide={createRide}
                     pickup={pickup}
@@ -279,7 +343,7 @@ const Home = () => {
 
                     setConfirmRidePanel={setConfirmRidePanel} setVehicleFound={setVehicleFound} />
             </div>
-            <div ref={vehicleFoundRef} className='fixed w-full z-10 bottom-0 translate-y-full bg-white px-3 py-6 pt-12'>
+            <div ref={vehicleFoundRef} className='fixed w-full z-1300 bottom-0 translate-y-full bg-white px-3 py-6 pt-12'>
                 <LookingForDriver
                     createRide={createRide}
                     pickup={pickup}
@@ -288,7 +352,7 @@ const Home = () => {
                     vehicleType={vehicleType}
                     setVehicleFound={setVehicleFound} />
             </div>
-            <div ref={waitingForDriverRef} className='fixed w-full z-10 bottom-0 translate-y-full bg-white px-3 py-6 pt-12'>
+            <div ref={waitingForDriverRef} className='fixed w-full z-1400 bottom-0 translate-y-full bg-white px-3 py-6 pt-12'>
                 <WaitingForDriver
                     ride={ride}
                     setVehicleFound={setVehicleFound}
