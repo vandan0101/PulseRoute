@@ -28,34 +28,40 @@ const CaptainRiding = () => {
 
 
     return (
-        <div className='h-screen relative flex flex-col justify-end'>
+        <div className='h-screen relative overflow-hidden'>
 
-            <div className='fixed p-6 top-0 flex items-center justify-between w-screen'>
+            <div className='absolute inset-0 z-0'>
+                <LiveTracking ride={rideData} autoFollow={false} />
+            </div>
+
+            <div className='fixed z-20 p-6 top-0 flex items-center justify-between w-screen'>
                 <img className='w-16' src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png" alt="" />
                 <Link to='/captain-home' className=' h-10 w-10 bg-white flex items-center justify-center rounded-full'>
                     <i className="text-lg font-medium ri-logout-box-r-line"></i>
                 </Link>
             </div>
 
-            <div className='h-1/5 p-6 flex items-center justify-between relative bg-yellow-400 pt-10'
+            <div className='absolute left-0 right-0 bottom-0 z-20 bg-yellow-400 px-6 pb-8 pt-10'
                 onClick={() => {
                     setFinishRidePanel(true)
                 }}
             >
-                <h5 className='p-1 text-center w-[90%] absolute top-0' onClick={() => {
+                <h5 className='p-1 text-center w-[90%] absolute top-0 left-1/2 -translate-x-1/2' onClick={() => {
 
                 }}><i className="text-3xl text-gray-800 ri-arrow-up-wide-line"></i></h5>
-                <h4 className='text-xl font-semibold'>{'4 KM away'}</h4>
-                <button className=' bg-green-600 text-white font-semibold p-3 px-10 rounded-lg'>Complete Ride</button>
+                <div className='flex items-center justify-between gap-4'>
+                    <div>
+                        <h4 className='text-2xl font-semibold'>Trip in Progress</h4>
+                        <p className='mt-1 text-sm text-gray-800'>Heading to {rideData?.destination || 'destination'}</p>
+                        <p className='mt-1 text-sm text-gray-700'>Passenger: {rideData?.user?.fullname?.firstname || 'Rider'}</p>
+                    </div>
+                    <button type='button' className='bg-green-600 text-white font-semibold p-3 px-8 rounded-lg'>Complete Ride</button>
+                </div>
             </div>
             <div ref={finishRidePanelRef} className='fixed w-full z-50 bottom-0 translate-y-full bg-white px-3 py-10 pt-12'>
                 <FinishRide
                     ride={rideData}
                     setFinishRidePanel={setFinishRidePanel} />
-            </div>
-
-            <div className='h-screen fixed w-screen top-0 z-[-1]'>
-                <LiveTracking ride={rideData} />
             </div>
 
         </div>

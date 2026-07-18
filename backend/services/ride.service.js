@@ -192,3 +192,46 @@ module.exports.endRide = async ({ rideId, captain, otp }) => {
 
   return updatedRide;
 };
+
+module.exports.markRidePaid = async ({ rideId, user }) => {
+  if (!rideId) {
+    throw new Error("Ride id is required");
+  }
+
+  const ride = await rideModel
+    .findOne({
+      _id: rideId,
+      user: user._id,
+    })
+    .populate("user")
+    .populate("captain")
+    .select("+otp");
+
+  if (!ride) {
+    throw new Error("Ride not found");
+  }
+
+  if (ride.status !== "completed") {
+    throw new Error("Ride is not completed yet");
+  }
+
+  if (ride.paymentStatus === "paid") {
+    return ride;
+  }
+
+  const updatedRide = await rideModel.findOneAndUpdate(
+    {
+      _id: rideId,
+    },
+    {
+      paymentStatus: "paid",
+      paymentID: `cash_${Date.now()}`,
+    },
+    { new: true },
+  )
+    .populate("user")
+    .populate("captain")
+    .select("+otp");
+
+  return updatedRide;
+};

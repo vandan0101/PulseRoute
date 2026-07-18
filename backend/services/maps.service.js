@@ -2,9 +2,68 @@ const axios = require("axios");
 const captainModel = require("../models/captain.model");
 
 const MIN_SEARCH_LENGTH = 3;
+const KNOWN_LOCATION_ALIASES = [
+  {
+    terms: [
+      "iit jodhpur",
+      "indian institute of technology jodhpur",
+      "institute of technology jodhpur",
+    ],
+    label:
+      "Indian Institute of Technology Jodhpur, NH 62, Karwar, Jodhpur, Rajasthan 342030, India",
+    coordinates: {
+      ltd: 26.4716,
+      lng: 73.1136,
+    },
+  },
+  {
+    terms: [ "jodhpur" ],
+    label: "Jodhpur, Rajasthan, India",
+    coordinates: {
+      ltd: 26.2389,
+      lng: 73.0243,
+    },
+  },
+  {
+    terms: [ "surat" ],
+    label: "Surat, Gujarat, India",
+    coordinates: {
+      ltd: 21.1702,
+      lng: 72.8311,
+    },
+  },
+];
 
 function hasGoogleApiKey() {
   return Boolean(process.env.GOOGLE_MAPS_API);
+}
+
+function normalizeInput(value) {
+  return value.toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+function findMatchingAliases(input) {
+  const normalizedInput = normalizeInput(input);
+
+  return KNOWN_LOCATION_ALIASES.filter((alias) =>
+    [ ...alias.terms, alias.label ].some((term) => {
+      const normalizedTerm = normalizeInput(term);
+      return (
+        normalizedTerm.includes(normalizedInput) ||
+        normalizedInput.includes(normalizedTerm)
+      );
+    }),
+  );
+}
+
+function findExactAlias(input) {
+  const normalizedInput = normalizeInput(input);
+
+  return KNOWN_LOCATION_ALIASES.find((alias) =>
+    [ ...alias.terms, alias.label ].some(
+      (term) => normalizeInput(term) === normalizedInput,
+    ),
+  );
 }
 
 async function geocodeWithNominatim(address) {
@@ -28,6 +87,7 @@ async function geocodeWithNominatim(address) {
 }
 
 async function suggestionsWithNominatim(input) {
+  const aliasMatches = findMatchingAliases(input);
   const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(input)}`;
   const response = await axios.get(url, {
     headers: {
@@ -36,9 +96,16 @@ async function suggestionsWithNominatim(input) {
     },
   });
 
-  return response.data
+  const apiSuggestions = response.data
     .map((place) => place.display_name)
     .filter(Boolean);
+
+  const combinedSuggestions = [
+    ...aliasMatches.map((alias) => alias.label),
+    ...apiSuggestions,
+  ];
+
+  return [ ...new Set(combinedSuggestions) ].slice(0, 5);
 }
 
 async function distanceTimeWithOsrm(origin, destination) {
@@ -68,6 +135,16 @@ async function distanceTimeWithOsrm(origin, destination) {
 module.exports.getAddressCoordinate = async (address) => {
   if (!address || typeof address !== "string" || address.trim().length < MIN_SEARCH_LENGTH) {
     throw new Error("Address is required");
+  }
+
+  const exactAlias = findExactAlias(address);
+  if (exactAlias) {
+    return exactAlias.coordinates;
+  }
+
+  const matchingAlias = findMatchingAliases(address)[0];
+  if (matchingAlias) {
+    return matchingAlias.coordinates;
   }
 
   const apiKey = process.env.GOOGLE_MAPS_API;
@@ -135,6 +212,7 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
     return [];
   }
 
+  const aliasMatches = findMatchingAliases(input);
   const apiKey = process.env.GOOGLE_MAPS_API;
   if (!hasGoogleApiKey()) {
     return suggestionsWithNominatim(input);
@@ -145,9 +223,16 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
   try {
     const response = await axios.get(url);
     if (response.data.status === "OK") {
-      return response.data.predictions
+      const googleSuggestions = response.data.predictions
         .map((prediction) => prediction.description)
         .filter((value) => value);
+
+      return [
+        ...new Set([
+          ...aliasMatches.map((alias) => alias.label),
+          ...googleSuggestions,
+        ]),
+      ].slice(0, 5);
     } else {
       return suggestionsWithNominatim(input);
     }

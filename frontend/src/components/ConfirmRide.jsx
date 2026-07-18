@@ -45,6 +45,7 @@ const ConfirmRide = (props) => {
           </div>
         </div>
         <button
+          disabled={props.isCreatingRide}
           onClick={async () => {
             const createdRide = await props.createRide();
 
@@ -55,9 +56,9 @@ const ConfirmRide = (props) => {
             props.setVehicleFound(true);
             props.setConfirmRidePanel(false);
           }}
-          className="w-full mt-5 bg-green-600 text-white font-semibold p-2 rounded-lg"
+          className="w-full mt-5 bg-green-600 text-white font-semibold p-2 rounded-lg disabled:cursor-not-allowed disabled:bg-green-300"
         >
-          Confirm
+          {props.isCreatingRide ? "Confirming..." : "Confirm"}
         </button>
       </div>
     </div>

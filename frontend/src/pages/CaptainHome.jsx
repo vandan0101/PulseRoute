@@ -65,6 +65,7 @@ const CaptainHome = () => {
 
     useEffect(() => {
         const handleNewRide = (data) => {
+            setConfirmRidePopupPanel(false)
             setRide(data)
             setRidePopupPanel(true)
         }
@@ -80,11 +81,12 @@ const CaptainHome = () => {
         try {
             const response = await axios.post('/rides/confirm', {
                 rideId: ride._id,
-                captainId: captain._id,
             }, { withCredentials: true, headers: { Authorization: `Bearer ${getCaptainToken()}` } })
 
+            setRide(response.data)
             setRidePopupPanel(false)
             setConfirmRidePopupPanel(true)
+            return response.data
         } catch (err) {
             console.error('Failed to confirm ride:', err)
             if (err.response?.status === 401) {
@@ -93,6 +95,7 @@ const CaptainHome = () => {
                 return
             }
             alert(err.response?.data?.message || 'Unable to confirm ride.')
+            return null
         }
     }
 

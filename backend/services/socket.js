@@ -2,6 +2,7 @@ const socketIo = require('socket.io');
 const mongoose = require('mongoose');
 const userModel = require('../models/user.model');
 const captainModel = require('../models/captain.model');
+const rideModel = require('../models/ride.model');
 
 let io;
 const connections = new Map();
@@ -56,6 +57,27 @@ function initializeSocket(server) {
                         lng: location.lng
                     }
                 });
+
+                const activeRide = await rideModel
+                    .findOne({
+                        captain: userId,
+                        status: { $in: [ 'accepted', 'ongoing' ] }
+                    })
+                    .populate('user')
+                    .populate('captain');
+
+                if (activeRide?.user?.socketId) {
+                    sendMessageToSocketId(activeRide.user.socketId, {
+                        event: 'captain-location-updated',
+                        data: {
+                            rideId: activeRide._id,
+                            location: {
+                                ltd: location.ltd,
+                                lng: location.lng
+                            }
+                        }
+                    });
+                }
             } catch (error) {
                 console.error('Socket location update failed:', error);
                 socket.emit('error', { message: 'Unable to update captain location' });

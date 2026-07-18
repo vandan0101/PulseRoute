@@ -60,4 +60,11 @@ router.post(
   rideController.endRide,
 );
 
+router.post(
+  "/pay",
+  authMiddleware.authUser,
+  body("rideId").isMongoId().withMessage("Invalid ride id"),
+  rideController.markRidePaid,
+);
+
 module.exports = router;

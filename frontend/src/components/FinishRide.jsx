@@ -72,6 +72,10 @@ const FinishRide = (props) => {
                 </div>
 
                 <div className='mt-10 w-full'>
+                    <div className='rounded-xl bg-slate-100 p-4 text-center'>
+                        <p className='text-sm text-gray-600'>Ask the rider for this OTP before finishing</p>
+                        <p className='mt-2 text-3xl font-bold tracking-[0.35em] text-slate-900'>{props.ride?.otp || '------'}</p>
+                    </div>
                     <input value={otp} onChange={(e) => setOtp(e.target.value)} type="text" className='bg-[#eee] px-6 py-4 font-mono text-lg rounded-lg w-full mt-3' placeholder='Enter OTP to complete ride' />
                     <button
                         onClick={endRide}

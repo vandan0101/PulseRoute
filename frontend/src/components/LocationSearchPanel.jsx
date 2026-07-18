@@ -2,6 +2,7 @@ import React from "react";
 
 const LocationSearchPanel = ({
   suggestions = [],
+  isLoading = false,
   setPanelOpen,
   setPickup,
   setDestination,
@@ -20,13 +21,17 @@ const LocationSearchPanel = ({
   if (!suggestions.length) {
     return (
       <div className="px-2 py-4 text-sm text-gray-500">
-        Search for a pickup or destination.
+        {isLoading
+          ? "Searching locations..."
+          : activeField
+            ? "No matching locations found. Try a more specific address."
+            : "Search for a pickup or destination."}
       </div>
     );
   }
 
   return (
-    <div className="space-y-3 px-1 py-3">
+    <div className="max-h-full space-y-3 overflow-y-auto px-1 py-3">
       {suggestions.map((suggestion, index) => (
         <button
           key={`${suggestion}-${index}`}

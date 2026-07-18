@@ -16,6 +16,7 @@ const VehiclePanel = (props) => {
       <h3 className="text-2xl font-semibold mb-5">Choose a Vehicle</h3>
       <div
         onClick={() => {
+          props.setVehiclePanel(false);
           props.setConfirmRidePanel(true);
           props.selectVehicle("car");
         }}
@@ -42,6 +43,7 @@ const VehiclePanel = (props) => {
       </div>
       <div
         onClick={() => {
+          props.setVehiclePanel(false);
           props.setConfirmRidePanel(true);
           props.selectVehicle("moto");
         }}
@@ -68,6 +70,7 @@ const VehiclePanel = (props) => {
       </div>
       <div
         onClick={() => {
+          props.setVehiclePanel(false);
           props.setConfirmRidePanel(true);
           props.selectVehicle("auto");
         }}

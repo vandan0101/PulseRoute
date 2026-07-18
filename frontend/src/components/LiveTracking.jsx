@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
@@ -10,97 +10,104 @@ const defaultCenter = {
     lng: 77.2090
 }
 
-const markerIconConfig = L.icon({
+const riderIcon = L.icon({
     iconRetinaUrl: markerIcon2x,
     iconUrl: markerIcon,
     shadowUrl: markerShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
+    iconSize: [ 25, 41 ],
+    iconAnchor: [ 12, 41 ],
+    popupAnchor: [ 1, -34 ],
+    shadowSize: [ 41, 41 ]
 })
 
-const RecenterMap = ({ position }) => {
+const captainIcon = L.icon({
+    iconRetinaUrl: markerIcon2x,
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow,
+    iconSize: [ 30, 48 ],
+    iconAnchor: [ 15, 48 ],
+    popupAnchor: [ 1, -38 ],
+    shadowSize: [ 41, 41 ],
+    className: 'hue-rotate-[160deg]'
+})
+
+const tripPointIcon = L.divIcon({
+    className: 'trip-point-marker',
+    html: '<div style="width:16px;height:16px;border-radius:9999px;background:#111827;border:3px solid #ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.25);"></div>',
+    iconSize: [ 16, 16 ],
+    iconAnchor: [ 8, 8 ]
+})
+
+const FollowMap = ({ focusPosition, autoFollow }) => {
     const map = useMap()
 
     useEffect(() => {
-        map.setView(position, map.getZoom(), {
+        if (!autoFollow || !focusPosition) {
+            return
+        }
+
+        map.setView([ focusPosition.lat, focusPosition.lng ], Math.max(map.getZoom(), 14), {
             animate: true
         })
-    }, [ map, position ])
+    }, [ autoFollow, focusPosition, map ])
 
     return null
 }
 
-const RouteLayer = ({ geometry, pickup, dest }) => {
+const RouteLayer = ({ geometry, trackedPoints }) => {
     const map = useMap()
+    const routeLayerRef = useRef(null)
 
     useEffect(() => {
-        if (!geometry) return
+        if (routeLayerRef.current) {
+            map.removeLayer(routeLayerRef.current)
+            routeLayerRef.current = null
+        }
 
-        const layer = L.geoJSON(geometry, {
-            style: { color: 'blue', weight: 5 }
-        }).addTo(map)
+        if (geometry) {
+            routeLayerRef.current = L.geoJSON(geometry, {
+                style: { color: '#1d4ed8', weight: 5 }
+            }).addTo(map)
+        }
 
-        if (pickup && dest) {
-            const bounds = L.latLngBounds([ [ pickup.lat, pickup.lng ], [ dest.lat, dest.lng ] ])
-            map.fitBounds(bounds, { padding: [50, 50] })
+        const validPoints = trackedPoints
+            .filter(Boolean)
+            .map((point) => [ point.lat, point.lng ])
+
+        if (validPoints.length > 1) {
+            map.fitBounds(validPoints, { padding: [ 50, 50 ] })
+        } else if (validPoints.length === 1) {
+            map.setView(validPoints[0], Math.max(map.getZoom(), 14), { animate: true })
         }
 
         return () => {
-            map.removeLayer(layer)
+            if (routeLayerRef.current) {
+                map.removeLayer(routeLayerRef.current)
+                routeLayerRef.current = null
+            }
         }
-    }, [ map, geometry, pickup, dest ])
+    }, [ geometry, map, trackedPoints ])
 
     return null
 }
 
-const LiveTracking = ({ ride }) => {
+const LiveTracking = ({ ride, trackedCaptainLocation, autoFollow = true, mapHeightClass = 'h-full' }) => {
     const [ currentPosition, setCurrentPosition ] = useState(defaultCenter)
-    const [ routeGeometry, setRouteGeometry ] = useState(null)
     const [ pickupCoords, setPickupCoords ] = useState(null)
-    const [ destCoords, setDestCoords ] = useState(null)
+    const [ destinationCoords, setDestinationCoords ] = useState(null)
+    const [ routeGeometry, setRouteGeometry ] = useState(null)
 
     useEffect(() => {
-        // If a ride is provided, geocode pickup/destination and fetch route
-        if (ride && ride.pickup && ride.destination) {
-            (async () => {
-                try {
-                    const geocode = async (address) => {
-                        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`)
-                        const data = await res.json()
-                        if (!data || data.length === 0) return null
-                        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
-                    }
-
-                    const p = await geocode(ride.pickup)
-                    const d = await geocode(ride.destination)
-                    if (p && d) {
-                        setPickupCoords(p)
-                        setDestCoords(d)
-                        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${p.lng},${p.lat};${d.lng},${d.lat}?overview=full&geometries=geojson`
-                        const r = await fetch(osrmUrl)
-                        const jr = await r.json()
-                        if (jr && jr.routes && jr.routes.length > 0) {
-                            setRouteGeometry(jr.routes[0].geometry)
-                        }
-                    }
-                } catch (err) {
-                    console.error('Failed to fetch route:', err)
-                }
-            })()
-        }
-
-        if (!navigator.geolocation) {
-            return undefined
-        }
+        let isMounted = true
 
         const updatePosition = (position) => {
-            const { latitude, longitude } = position.coords
+            if (!isMounted) {
+                return
+            }
 
             setCurrentPosition({
-                lat: latitude,
-                lng: longitude
+                lat: position.coords.latitude,
+                lng: position.coords.longitude
             })
         }
 
@@ -108,46 +115,149 @@ const LiveTracking = ({ ride }) => {
             console.error('Unable to fetch location:', error)
         }
 
-        navigator.geolocation.getCurrentPosition(updatePosition, handleError, {
-            enableHighAccuracy: true
-        })
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(updatePosition, handleError, {
+                enableHighAccuracy: true
+            })
+        }
 
-        const watchId = navigator.geolocation.watchPosition(updatePosition, handleError, {
+        const watchId = navigator.geolocation?.watchPosition(updatePosition, handleError, {
             enableHighAccuracy: true,
             maximumAge: 0
         })
 
-        const intervalId = window.setInterval(() => {
-            navigator.geolocation.getCurrentPosition(updatePosition, handleError, {
-                enableHighAccuracy: true
-            })
-        }, 1000)
-
         return () => {
-            navigator.geolocation.clearWatch(watchId)
-            window.clearInterval(intervalId)
+            isMounted = false
+            if (watchId != null && navigator.geolocation) {
+                navigator.geolocation.clearWatch(watchId)
+            }
         }
     }, [])
 
-    const position = useMemo(() => [ currentPosition.lat, currentPosition.lng ], [ currentPosition ])
+    useEffect(() => {
+        let ignore = false
+
+        const loadTripDetails = async () => {
+            if (!ride?.pickup || !ride?.destination) {
+                setPickupCoords(null)
+                setDestinationCoords(null)
+                setRouteGeometry(null)
+                return
+            }
+
+            try {
+                const geocode = async (address) => {
+                    const response = await fetch(`/maps/get-coordinates?address=${encodeURIComponent(address)}`)
+                    if (!response.ok) {
+                        return null
+                    }
+
+                    const data = await response.json()
+                    if (typeof data?.ltd !== 'number' || typeof data?.lng !== 'number') {
+                        return null
+                    }
+
+                    return { lat: data.ltd, lng: data.lng }
+                }
+
+                const pickupPoint = await geocode(ride.pickup)
+                const destinationPoint = await geocode(ride.destination)
+
+                if (ignore) {
+                    return
+                }
+
+                setPickupCoords(pickupPoint)
+                setDestinationCoords(destinationPoint)
+
+                if (pickupPoint && destinationPoint) {
+                    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${pickupPoint.lng},${pickupPoint.lat};${destinationPoint.lng},${destinationPoint.lat}?overview=full&geometries=geojson`
+                    const routeResponse = await fetch(osrmUrl)
+                    const routeData = await routeResponse.json()
+
+                    if (!ignore) {
+                        setRouteGeometry(routeData?.routes?.[0]?.geometry ?? null)
+                    }
+                }
+            } catch (error) {
+                if (!ignore) {
+                    setRouteGeometry(null)
+                }
+                console.error('Failed to fetch route:', error)
+            }
+        }
+
+        loadTripDetails()
+
+        return () => {
+            ignore = true
+        }
+    }, [ ride?.pickup, ride?.destination ])
+
+    const captainPosition = useMemo(() => {
+        if (trackedCaptainLocation?.lat && trackedCaptainLocation?.lng) {
+            return trackedCaptainLocation
+        }
+
+        const rideCaptainLocation = ride?.captain?.location
+        if (typeof rideCaptainLocation?.ltd === 'number' && typeof rideCaptainLocation?.lng === 'number') {
+            return {
+                lat: rideCaptainLocation.ltd,
+                lng: rideCaptainLocation.lng
+            }
+        }
+
+        return null
+    }, [ ride?.captain?.location, trackedCaptainLocation ])
+
+    const focusPosition = captainPosition || currentPosition
+
+    const trackedPoints = useMemo(() => {
+        return [
+            currentPosition,
+            captainPosition,
+            pickupCoords,
+            destinationCoords
+        ]
+    }, [ captainPosition, currentPosition, destinationCoords, pickupCoords ])
 
     return (
         <MapContainer
-            center={position}
+            center={[ focusPosition.lat, focusPosition.lng ]}
             zoom={15}
             scrollWheelZoom={true}
-            className='h-full w-full relative z-0'
+            dragging={true}
+            doubleClickZoom={true}
+            touchZoom={true}
+            className={`${mapHeightClass} w-full relative z-0`}
         >
             <TileLayer
                 attribution='&copy; OpenStreetMap contributors'
                 url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
             />
-            <RecenterMap position={position} />
-            <Marker position={position} icon={markerIconConfig}>
-                <Popup>Current location</Popup>
+            <FollowMap focusPosition={focusPosition} autoFollow={autoFollow} />
+            <RouteLayer geometry={routeGeometry} trackedPoints={trackedPoints} />
+
+            <Marker position={[ currentPosition.lat, currentPosition.lng ]} icon={riderIcon}>
+                <Popup>Your location</Popup>
             </Marker>
-            {routeGeometry && pickupCoords && destCoords && (
-                <RouteLayer geometry={routeGeometry} pickup={pickupCoords} dest={destCoords} />
+
+            {captainPosition && (
+                <Marker position={[ captainPosition.lat, captainPosition.lng ]} icon={captainIcon}>
+                    <Popup>Driver location</Popup>
+                </Marker>
+            )}
+
+            {pickupCoords && (
+                <Marker position={[ pickupCoords.lat, pickupCoords.lng ]} icon={tripPointIcon}>
+                    <Popup>Pickup</Popup>
+                </Marker>
+            )}
+
+            {destinationCoords && (
+                <Marker position={[ destinationCoords.lat, destinationCoords.lng ]} icon={tripPointIcon}>
+                    <Popup>Destination</Popup>
+                </Marker>
             )}
         </MapContainer>
     )
